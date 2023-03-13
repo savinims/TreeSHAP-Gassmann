@@ -19,10 +19,10 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.svm import SVR
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.tree import DecisionTreeRegressor
+from sklearn.decomposition import PCA
 # import time
 # import os
 # from sklearn.inspection import permutation_importance
-# from sklearn.decomposition import PCA
 # from xgboost.sklearn import XGBRegressor
 input_folder_path = '../../Inputs'
 
@@ -101,6 +101,7 @@ assert(nonlinear_method in ['svr','kernel_ridge','random_forest','xgboost', 'dec
 input_features = ['pressure', 'porosity','k dry', 'k mineral','grain density', 'g ratio']
 num_measurement_features = len(input_features)
 standardize_inputs = True
+decorrelate_inputs = True # use PCA to decorrelate measurement data
 
 
 if file_as_feature:
@@ -125,9 +126,16 @@ for random_state in range(num_repeats):
         scaled_input_data = scaler.transform(input_data.values)
     else:
         scaled_input_data = input_data
-
-    X_dummy = np.concatenate(
-        (scaled_input_data, all_data_df['file_info'].values[:, np.newaxis]), axis=1)
+    if decorrelate_inputs :
+        pca = PCA()
+        pca.fit(scaled_input_data )
+        pc_names = ["PC" + str(x + 1) for x in range(pca.components_.shape[0])]
+        x_pca = pca.transform(scaled_input_data)
+        X_dummy = np.concatenate(
+            (x_pca, all_data_df['file_info'].values[:, np.newaxis]), axis=1)
+    else:
+        X_dummy = np.concatenate(
+            (scaled_input_data, all_data_df['file_info'].values[:, np.newaxis]), axis=1)
     
     
     if positive_error_only:

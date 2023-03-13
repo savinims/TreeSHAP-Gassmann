@@ -1,5 +1,5 @@
 """
-@author: Savini Samarasinghe, Colorado school of mines
+@author: Savini Samarasinghe
 """
 import numpy as np
 import matplotlib.pyplot as plt
