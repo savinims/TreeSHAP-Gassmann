@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+ # -*- coding: utf-8 -*-
 """
 @author: Savini Samarasinghe
 """
@@ -24,7 +24,8 @@ from sklearn.decomposition import PCA
 # import os
 # from sklearn.inspection import permutation_importance
 # from xgboost.sklearn import XGBRegressor
-input_folder_path = '../../Inputs'
+input_folder_path = '../Inputs'
+output_folder_path = '../Outputs'
 
 # =============================================================================
 # Load and preprocess data
@@ -94,14 +95,14 @@ for i, qty in enumerate(plot_vars):
 
 positive_error_only = False # to discard negative error samples
 file_as_feature = True # to investigate experiment specific biases
-num_repeats = 20
+num_repeats = 25
 test_size = 0.1
 nonlinear_method = 'random_forest'
 assert(nonlinear_method in ['svr','kernel_ridge','random_forest','xgboost', 'decision_tree'])
 input_features = ['pressure', 'porosity','k dry', 'k mineral','grain density', 'g ratio']
 num_measurement_features = len(input_features)
 standardize_inputs = True
-decorrelate_inputs = True # use PCA to decorrelate measurement data
+decorrelate_inputs = False # use PCA to decorrelate measurement data
 
 
 if file_as_feature:
@@ -129,8 +130,10 @@ for random_state in range(num_repeats):
     if decorrelate_inputs :
         pca = PCA()
         pca.fit(scaled_input_data )
+        
         pc_names = ["PC" + str(x + 1) for x in range(pca.components_.shape[0])]
         x_pca = pca.transform(scaled_input_data)
+        loadings = pd.DataFrame(pca.components_.T, columns=pc_names, index = input_features[:num_measurement_features])
         X_dummy = np.concatenate(
             (x_pca, all_data_df['file_info'].values[:, np.newaxis]), axis=1)
     else:
@@ -235,13 +238,28 @@ for random_state in range(num_repeats):
     print('Pseudo R squared on training data= {}'.format(optimal_model.score(X_train, y_train)))
     print('Pseudo R squared on testing data= {}'.format(optimal_model.score(X_test, y_test)))
     
+    
     if((nonlinear_method == 'decision_tree') | (nonlinear_method == 'random_forest')):    
         explainer = shap.Explainer(optimal_model)
         
         shap_values_test = explainer.shap_values(X_test)
+        
+        
+        if decorrelate_inputs:
+            # aggregate shap values using the pca loadings to investigate the attributions of the original 
+            # measurement variables
+            pca_shap_values = shap_values_test[:,:num_measurement_features]
+            shap_values = shap_values_test
+            for i in range(num_measurement_features):
+                feature_loadings = loadings.loc[input_features[i]].values
+                shap_values[:,i] = pca_shap_values@feature_loadings
+
+        else:
+            shap_values = shap_values_test
+        
         my_cmap = plt.get_cmap('viridis')
         plt.figure()
-        shap.summary_plot(shap_values_test,X_test,
+        shap.summary_plot(shap_values,X_test,
                           feature_names=input_features, show=False)
         plt.title('Shap Values on test data')
         # Change the colormap of the artists
@@ -249,9 +267,10 @@ for random_state in range(num_repeats):
             for fcc in fc.get_children():
                 if hasattr(fcc, "set_cmap"):
                     fcc.set_cmap(my_cmap)
+        plt.show()
                     
      
-        all_shap_values.append(shap_values_test)
+        all_shap_values.append(shap_values)
         all_X_test.append(X_test)
         all_y_test.append(y_test)
     else:
@@ -282,5 +301,34 @@ for i in range(num_measurement_features):
     plt.xlabel('SHAP values')
     plt.ylabel('K sat - K sat Gassmann')
     plt.colorbar(label =input_features[i] )
+    plt.savefig(output_folder_path+'/Shap_'+input_features[i]+'.png', dpi =300)
     plt.show()
     
+    
+    
+for i in range(num_measurement_features, len(input_features) ):
+    plt.figure()
+    plt.grid()
+
+    plt.scatter(shap[:,i], y_data, c = plot_data[:,i], cmap = 'RdGy', alpha = 0.8)
+    
+    plt.xlabel('SHAP values')
+    plt.ylabel('K sat - K sat Gassmann')
+    plt.colorbar(label =input_features[i] )
+    plt.savefig(output_folder_path+'/Shap_'+input_features[i]+'.png', dpi =300)
+    plt.show()
+    
+    
+# =============================================================================
+#     Mean absolute SHAP plot
+# =============================================================================
+
+mean_abs_shap_values = np.mean(np.abs(shap), axis = 0)
+sort_idx = np.argsort(mean_abs_shap_values)
+std_abs_shap_values = np.std(np.abs(shap), axis = 0)
+
+plt.figure()
+plt.barh(np.array(input_features)[sort_idx],mean_abs_shap_values[sort_idx], xerr = std_abs_shap_values[sort_idx], color = 'grey', edgecolor = 'grey', label = 'mean abs SHAP value')
+plt.legend()
+plt.savefig(output_folder_path+'/Shap_mean_abs.png', dpi =300)
+plt.show()
