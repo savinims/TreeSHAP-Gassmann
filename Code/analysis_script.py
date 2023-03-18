@@ -25,7 +25,7 @@ from sklearn.decomposition import PCA
 # from sklearn.inspection import permutation_importance
 # from xgboost.sklearn import XGBRegressor
 input_folder_path = '../Inputs'
-output_folder_path = '../Outputs'
+output_folder_path = '../Outputs_no_file'
 
 # =============================================================================
 # Load and preprocess data
@@ -95,7 +95,7 @@ for i, qty in enumerate(plot_vars):
 
 positive_error_only = False # to discard negative error samples
 file_as_feature = True # to investigate experiment specific biases
-num_repeats = 25
+num_repeats = 1
 test_size = 0.1
 nonlinear_method = 'random_forest'
 assert(nonlinear_method in ['svr','kernel_ridge','random_forest','xgboost', 'decision_tree'])
@@ -177,7 +177,7 @@ for random_state in range(num_repeats):
     test_prediction = model.predict(X_test)
     # print the coefficients
     for i,feature in enumerate(input_features):
-        print("Coefficient for {} = {}".format(feature, coeff[i]))
+        print("Coefficient for {} = {:.3f}".format(feature, coeff[i]))
         
     
     data_helpers.draw_cross_plot(x_data=y_train, y_data=train_prediction, x_label='Ground truth', y_label='Prediction',
@@ -187,7 +187,9 @@ for random_state in range(num_repeats):
     data_helpers.draw_cross_plot(x_data=y_test, y_data=test_prediction, x_label='Ground truth', y_label='Prediction',
                                   colorbar_label='|GT - Prediction|', show=False, color_by_var=np.abs(y_test-test_prediction))
     plt.title('Testing R squared = {}'.format(model.score(X_test, y_test)))
-
+    print('Linear regression training R squared = {:.3f}'.format(model.score(X_train, y_train)))
+    print('Linear regression testing R squared = {:.3f}'.format(model.score(X_test, y_test)))
+    
     
        
     # =============================================================================
@@ -235,8 +237,8 @@ for random_state in range(num_repeats):
 
     optimal_model = model(**search.best_params_)
     optimal_model.fit(X_train,y_train)
-    print('Pseudo R squared on training data= {}'.format(optimal_model.score(X_train, y_train)))
-    print('Pseudo R squared on testing data= {}'.format(optimal_model.score(X_test, y_test)))
+    print('Nonlinear regression pseudo R squared on training data= {:.3f}'.format(optimal_model.score(X_train, y_train)))
+    print('Nonlinear regression pseudo R squared on testing data= {:.3f}'.format(optimal_model.score(X_test, y_test)))
     
     
     if((nonlinear_method == 'decision_tree') | (nonlinear_method == 'random_forest')):    
@@ -330,5 +332,6 @@ std_abs_shap_values = np.std(np.abs(shap), axis = 0)
 plt.figure()
 plt.barh(np.array(input_features)[sort_idx],mean_abs_shap_values[sort_idx], xerr = std_abs_shap_values[sort_idx], color = 'grey', edgecolor = 'grey', label = 'mean abs SHAP value')
 plt.legend()
+plt.tight_layout()
 plt.savefig(output_folder_path+'/Shap_mean_abs.png', dpi =300)
 plt.show()
