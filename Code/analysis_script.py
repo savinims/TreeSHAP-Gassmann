@@ -54,6 +54,13 @@ yin_df = data_helpers.get_yin_df(input_folder_path, rho_fluid, k_quartz, k_clay,
 dataframes = [blangy_df, strandenes_df, han_df, mapeli_df, yin_df]
 df_descriptions = ['Blangy, 1992', 'Strandenes, 1991',
                     'Han, 1986', 'Mapeli, 2018', 'Yin, 1993']
+dataset_names =  ['Blangy', 'Strandenes',
+                    'Han', 'Mapeli', 'Yin']
+# dataframes = [blangy_df, strandenes_df, han_df,  yin_df]
+# df_descriptions = ['Blangy, 1992', 'Strandenes, 1991',
+#                     'Han, 1986', 'Yin, 1993']
+# dataset_names =  ['Blangy', 'Strandenes',
+#                     'Han',  'Yin']
 all_data_df = pd.DataFrame()
 
 for idx, df in enumerate(dataframes):
@@ -75,8 +82,7 @@ file_info =all_data_df['file_info']
 plot_vars = [all_data_df['pressure'], all_data_df['porosity'], all_data_df['k_dry'], all_data_df['grain_density'], all_data_df['k_mineral'], all_data_df['g_dry']/all_data_df['g_sat'], all_data_df['clay']]
 plot_vars_txt = ['pressure', 'porosity', 'K dry', 'grain density', 'K mineral', 'G dry/G sat', 'caly content']
 
-dataset_names =  ['Blangy', 'Strandenes',
-                    'Han', 'Mapeli', 'Yin']
+
 colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple']
 file_names = [dataset_names[int(x-1)] for x in list(file_info)]
    
@@ -95,7 +101,7 @@ for i, qty in enumerate(plot_vars):
 
 positive_error_only = False # to discard negative error samples
 file_as_feature = True # to investigate experiment specific biases
-num_repeats = 1
+num_repeats = 10
 test_size = 0.1
 nonlinear_method = 'random_forest'
 assert(nonlinear_method in ['svr','kernel_ridge','random_forest','xgboost', 'decision_tree'])
@@ -112,6 +118,7 @@ if file_as_feature:
 all_shap_values = []
 all_X_test = []
 all_y_test = []
+all_shap_interactions = []
 
 for random_state in range(num_repeats):
     input_data = all_data_df[['pressure', 'porosity',
@@ -245,6 +252,7 @@ for random_state in range(num_repeats):
         explainer = shap.Explainer(optimal_model)
         
         shap_values_test = explainer.shap_values(X_test)
+        interaction = explainer.shap_interaction_values(X_test)
         
         
         if decorrelate_inputs:
@@ -275,6 +283,7 @@ for random_state in range(num_repeats):
         all_shap_values.append(shap_values)
         all_X_test.append(X_test)
         all_y_test.append(y_test)
+        all_shap_interactions.append(interaction)
     else:
         raise NotImplementedError('Kernel SHAP required for models that are not based on trees')
 
@@ -288,7 +297,7 @@ else:
     
 y_data = np.array(all_y_test).reshape(-1,1)
 shap = np.array(all_shap_values).reshape(-1,len(input_features))    
-    
+shap_interactions = np.array(all_shap_interactions).reshape(-1,len(input_features),len(input_features))      
     
 for i in range(num_measurement_features):
     plt.figure()
@@ -335,3 +344,35 @@ plt.legend()
 plt.tight_layout()
 plt.savefig(output_folder_path+'/Shap_mean_abs.png', dpi =300)
 plt.show()
+
+
+# =============================================================================
+# SHAP interaction plot
+# =============================================================================
+
+# Get absolute mean of matrices
+mean_shap = np.abs(shap_interactions).mean(0)
+df = pd.DataFrame(mean_shap,index=input_features,columns=input_features)
+
+# times off diagonal by 2
+df.where(df.values == np.diagonal(df),df.values*2,inplace=True)
+
+# Define mask used to cover squares above diagonal
+mask = []
+for i in range(len(input_features)):
+    mask_i = []
+    for j in range(len(input_features)):
+        if i>=j:
+            mask_i.append(1)
+        else:
+            mask_i.append(np.nan)
+    mask.append(mask_i)
+mask = np.array(mask)
+
+# display
+plt.figure(figsize=(12, 10), facecolor='w', edgecolor='k')
+sns.set(font_scale=1.5)
+sns.heatmap(np.round(df*mask,2),  cmap=cmr.lavender, annot=True, fmt='.2g', cbar=True)
+plt.yticks(rotation=0)
+plt.show()
+

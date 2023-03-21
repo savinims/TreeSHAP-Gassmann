@@ -342,6 +342,8 @@ def get_han_df(input_folder_path, rho_fluid, k_quartz, k_clay, k_mica, k_feldspa
 
 def get_mapeli_df(input_folder_path, rho_fluid, k_quartz, k_clay, k_mica, k_feldspar, k_fluid):
 
+    # for mapeli data, using k_mineral = 38 or adding carbon to clay content did not
+    # do any noteworthy changes to the gassmann vs measurement plots
     composition = pd.read_csv(input_folder_path+'/composition_cesar.csv')
     data = pd.read_csv(input_folder_path+'/Cesar_data.csv')
     data = data.dropna(axis=0)
