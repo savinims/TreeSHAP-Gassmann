@@ -376,3 +376,17 @@ sns.heatmap(np.round(df*mask,2),  cmap=cmr.lavender, annot=True, fmt='.2g', cbar
 plt.yticks(rotation=0)
 plt.show()
 
+# =============================================================================
+# Visualize main effects (the values that are along the diagonal)
+# =============================================================================
+
+colorbar_lim = np.max(np.abs(y_data))
+for feature1 in range(len(input_features)):
+    for feature2 in range(len(input_features)):
+        if (feature1==feature2) & (df.loc[input_features[feature1], input_features[feature2]]>=0.08):
+            plt.figure()           
+            plt.scatter(rescaled_X_test[:,feature1], shap_interactions[:,feature1,feature2], c =y_data ,
+                        cmap = cmr.fusion_r, alpha = 0.9, vmin = -colorbar_lim, vmax = colorbar_lim)
+            plt.xlabel(input_features[feature1])
+            plt.colorbar(label = 'K sat - K sat Gassmann')
+            plt.show()
