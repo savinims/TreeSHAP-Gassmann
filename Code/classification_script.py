@@ -11,14 +11,13 @@ import seaborn as sns
 import cmasher as cmr
 import shap
 from sklearn.preprocessing import OneHotEncoder
-from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.svm import SVR
-from sklearn.kernel_ridge import KernelRidge
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.linear_model import RidgeClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
@@ -104,10 +103,10 @@ for i, qty in enumerate(plot_vars):
 
 
 file_as_feature = True # to investigate experiment specific biases
-num_repeats = 10
+num_repeats = 1
 test_size = 0.1
 nonlinear_method = 'random_forest'
-assert(nonlinear_method in ['svr','kernel_ridge','random_forest','xgboost', 'decision_tree'])
+assert(nonlinear_method in ['svc','random_forest','decision_tree'])
 input_features = ['pressure', 'porosity','k dry', 'k mineral','grain density', 'g ratio']
 num_measurement_features = len(input_features)
 standardize_inputs = True
@@ -175,4 +174,50 @@ for random_state in range(num_repeats):
     
     print('Balanced accuracy score, training = {}'.format(balanced_accuracy_score(y_train, logistic_reg_train_pred)))
     print('Balanced accuracy score, testing = {}'.format(balanced_accuracy_score(y_test, logistic_reg_test_pred)))  
+    
+    # =============================================================================
+    # Non linear classification 
+    # =============================================================================
+    if nonlinear_method == 'svc':
+        model = SVC
+        search = GridSearchCV(model(),
+                    param_grid={"C": [1e0, 1e1, 1e2, 1e3],
+                                "kernel":['linear', 'poly', 'rbf', 'sigmoid',]}, 
+                    scoring =  'balanced_accuracy', 
+                    n_jobs = 12, cv = 10)
+    elif nonlinear_method == 'decision_tree':
+        model = DecisionTreeClassifier
+        search= GridSearchCV( model(),
+         param_grid={'max_depth':np.arange(2,21,2),
+                     'min_samples_split':np.arange(2,10),
+                     'min_samples_leaf':np.arange(1,8),
+                     'criterion':['gini', 'entropy', 'log_loss'],
+                     'max_features':[ 'sqrt', 'log2'],
+                     'class_weight':['balanced']
+                     }, 
+         scoring =  'balanced_accuracy',
+         n_jobs = 12, cv = 10)
+    elif nonlinear_method == 'random_forest':    
+         model = RandomForestClassifier
+         search = GridSearchCV(model(), 
+         param_grid={'max_depth':np.arange(5,21), 
+                     'n_estimators':[25,50,75,100,200],
+                     'min_samples_leaf':np.arange(1,5),
+                     'criterion':['gini', 'entropy', 'log_loss'],
+                     'max_features':[ 'sqrt', 'log2'],
+                     'class_weight':['balanced']
+                     }, 
+         n_jobs = 12, cv = 5,
+         scoring = 'balanced_accuracy')
+                
+
+    search.fit(X_train, y_train)
+    print(f"Best model params: {search.best_params_} and balanced accuracy score: {search.best_score_:.3f}")
+    
+    optimal_model = model(**search.best_params_)
+    optimal_model.fit(X_train,y_train)    
+    print('Non linear method, Balanced accuracy score, training = {}'.format(balanced_accuracy_score(y_train, optimal_model.predict(X_train))))
+    print('Non linear method, Balanced accuracy score, testing = {}'.format(balanced_accuracy_score(y_test, optimal_model.predict(X_test))))  
+    print()
+    
     
