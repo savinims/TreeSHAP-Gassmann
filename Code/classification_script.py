@@ -20,6 +20,9 @@ from sklearn.svm import SVR
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.decomposition import PCA
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import balanced_accuracy_score
 # import time
 # import os
 # from sklearn.inspection import permutation_importance
@@ -134,6 +137,7 @@ for random_state in range(num_repeats):
         scaled_input_data = scaler.transform(input_data.values)
     else:
         scaled_input_data = input_data
+        
     if decorrelate_inputs :
         pca = PCA()
         pca.fit(scaled_input_data )
@@ -141,30 +145,34 @@ for random_state in range(num_repeats):
         pc_names = ["PC" + str(x + 1) for x in range(pca.components_.shape[0])]
         x_pca = pca.transform(scaled_input_data)
         loadings = pd.DataFrame(pca.components_.T, columns=pc_names, index = input_features[:num_measurement_features])
-        X_dummy = np.concatenate(
-            (x_pca, all_data_df['file_info'].values[:, np.newaxis]), axis=1)
+        X_dummy = x_pca
     else:
-        X_dummy = np.concatenate(
-            (scaled_input_data, all_data_df['file_info'].values[:, np.newaxis]), axis=1)
-    
-    
-    # A % of data from each dataset used for validation
-    output_data_binary = (output_data >=0)*1
-    X_train, X_test, y_train, y_test = train_test_split(X_dummy, output_data_binary, random_state=random_state,test_size=test_size, stratify=output_data_binary)
-    
-    
+        X_dummy = scaled_input_data
     
     # # becuase the different experiments can have biases and limitations that are not 
     # # necessarily associated to the Gassman's model, we can also include the data source as an additional input feature. The file number will be one hot encoded as a categorical variable.
-    # here I will use onehotencoding instead of binary because it will be easier for the explainability methods 
+    # here I will use onehotencoding instead of binary because it will be easier for the explainability methods         
     if file_as_feature:
         onehot_encoder = OneHotEncoder(sparse=False)
-        train_file_info = onehot_encoder.fit_transform(np.expand_dims(X_train[:,-1], axis = 1))
-        test_file_info = onehot_encoder.fit_transform(np.expand_dims(X_test[:,-1], axis = 1))
-        X_train = np.hstack((X_train[:, :-1],train_file_info))
-        X_test = np.hstack((X_test[:, :-1],test_file_info))
-    else:        
-        X_train = X_train[:, :-1]
-        X_test = X_test[:, :-1]
+        file_info_feature = onehot_encoder.fit_transform(np.expand_dims(all_data_df['file_info'], axis = 1))
+        X_dummy = np.hstack((X_dummy, file_info_feature))
 
-
+    # A % of data from each dataset used for validation
+    output_data_binary = (output_data >=0)*1
+    X_train, X_test, y_train, y_test = train_test_split(X_dummy, output_data_binary, 
+                                                        random_state=random_state,test_size=test_size, 
+                                                        stratify=output_data_binary)
+    
+    # =============================================================================
+    #  Logistic regression as a baseline
+    # =============================================================================
+    
+    
+    logistic_reg_model = LogisticRegression(random_state=random_state)
+    logistic_reg_model.fit(X_train, y_train)
+    logistic_reg_train_pred = logistic_reg_model.predict(X_train)
+    logistic_reg_test_pred = logistic_reg_model.predict(X_test)
+    
+    print('Balanced accuracy score, training = {}'.format(balanced_accuracy_score(y_train, logistic_reg_train_pred)))
+    print('Balanced accuracy score, testing = {}'.format(balanced_accuracy_score(y_test, logistic_reg_test_pred)))  
+    
